@@ -1,0 +1,81 @@
+# Python 虚拟环境
+venv/
+env/
+.venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Python 缓存与编译文件
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# 测试项目特有文件 (日志/报告/截图)
+# 日志文件
+logs/
+*.log
+
+# 测试报告
+reports/
+allure-results/
+allure-report/
+html-report/
+
+# 失败用例截图
+screenshots/
+screenshot/
+*.png
+*.jpg
+
+# 敏感信息与环境变量
+.env
+.env.local
+.env.*.local
+*.env
+
+# 编辑器与 IDE 配置
+# PyCharm / IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+
+# 操作系统垃圾文件
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
