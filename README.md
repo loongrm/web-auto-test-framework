@@ -190,7 +190,3 @@ auto-test-platform/
 - **工程化**：FastAPI+React完整前后端分离，SQLite持久化执行历史
 - **CI/CD**：Jenkins多环境并行流水线，Docker容器化，企业微信实时通知
 - **可观测性**：Allure报告 + 失败截图 + 结构化日志，三位一体排障链路
-
-## License
-
-MIT License
