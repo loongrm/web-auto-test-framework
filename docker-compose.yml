@@ -1,0 +1,55 @@
+version: '3.9'
+
+services:
+  # ─── 后端 API 服务 ────────────────────────────────────────
+  backend:
+    build: .
+    command: uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+      - ./data:/app/data
+    env_file: .env
+    environment:
+      - TEST_ENV=dev
+      - PYTHONPATH=/app
+    networks:
+      - test-net
+
+  # ─── 测试执行容器 ─────────────────────────────────────────
+  test-runner:
+    build: .
+    command: >
+      pytest tests/ -v --alluredir=reports/allure-results --tb=short -n auto
+    volumes:
+      - .:/app
+      - ./reports:/app/reports
+      - ./logs:/app/logs
+      - ./screenshots:/app/screenshots
+    env_file: .env
+    environment:
+      - TEST_ENV=test
+      - PYTHONPATH=/app
+    networks:
+      - test-net
+    profiles:
+      - test # 使用 docker compose --profile test up 单独启动
+
+  # ─── Allure 报告服务 ──────────────────────────────────────
+  allure:
+    image: frankescobar/allure-docker-service:latest
+    environment:
+      CHECK_RESULTS_EVERY_SECONDS: 5
+      KEEP_HISTORY: "20"
+    ports:
+      - "5050:5050"
+    volumes:
+      - ./reports/allure-results:/app/allure-results
+      - ./reports/allure-report:/app/default-reports
+    networks:
+      - test-net
+
+networks:
+  test-net:
+    driver: bridge
