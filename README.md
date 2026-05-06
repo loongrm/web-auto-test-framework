@@ -145,6 +145,7 @@ auto-test-platform/
 ├── Dockerfile
 ├── docker-compose.yml
 └── Jenkinsfile             # 多环境并行流水线
+```
 
 ## 环境变量说明
 
