@@ -1,0 +1,44 @@
+# 浏览器配置
+browser:
+  type: chromium          # chromium | firefox | webkit
+  headless: false
+  slow_mo: 0
+  timeout: 30000          # 毫秒
+  viewport:
+    width: 1920
+    height: 1080
+  locale: zh-CN
+  timezone: Asia/Shanghai
+
+# 测试目标站点
+base_url: "https://www.saucedemo.com"
+
+# API测试基础URL
+api_base_url: "https://reqres.in"
+
+# Allure报告
+allure:
+  results_dir: "reports/allure-results"
+  report_dir: "reports/allure-report"
+
+# 截图配置
+screenshot:
+  on_failure: true
+  dir: "screenshots"
+  full_page: true
+
+# 日志配置
+log:
+  level: "DEBUG"
+  dir: "logs"
+  retention: "7 days"
+  rotation: "00:00"
+
+# 重试配置
+retry:
+  count: 2
+  delay: 1.0
+
+# 数据库
+database:
+  url: "sqlite+aiosqlite:///./data/test_results.db"

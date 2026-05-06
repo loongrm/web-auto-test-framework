@@ -1,0 +1,6 @@
+browser:
+  headless: true
+  slow_mo: 0
+
+log:
+  level: "INFO"

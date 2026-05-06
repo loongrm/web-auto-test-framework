@@ -1,0 +1,9 @@
+browser:
+  headless: false
+  slow_mo: 50
+
+base_url: "https://www.saucedemo.com"
+api_base_url: "https://reqres.in"
+
+log:
+  level: "DEBUG"
