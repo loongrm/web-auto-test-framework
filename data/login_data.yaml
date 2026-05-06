@@ -1,0 +1,55 @@
+# SauceDemo 登录测试数据
+# 目标站点: https://www.saucedemo.com
+login_cases:
+  - id: TC_LOGIN_001
+    desc: "标准用户正常登录"
+    username: "standard_user"
+    password: "secret_sauce"
+    expected: "success"
+    priority: P0
+
+  - id: TC_LOGIN_002
+    desc: "被锁定用户登录"
+    username: "locked_out_user"
+    password: "secret_sauce"
+    expected: "error"
+    error_msg: "Sorry, this user has been locked out"
+    priority: P0
+
+  - id: TC_LOGIN_003
+    desc: "错误密码登录"
+    username: "standard_user"
+    password: "wrong_password"
+    expected: "error"
+    error_msg: "Username and password do not match"
+    priority: P1
+
+  - id: TC_LOGIN_004
+    desc: "空用户名提交"
+    username: ""
+    password: "secret_sauce"
+    expected: "error"
+    error_msg: "Username is required"
+    priority: P1
+
+  - id: TC_LOGIN_005
+    desc: "空密码提交"
+    username: "standard_user"
+    password: ""
+    expected: "error"
+    error_msg: "Password is required"
+    priority: P1
+
+  - id: TC_LOGIN_006
+    desc: "问题用户登录（视觉异常）"
+    username: "problem_user"
+    password: "secret_sauce"
+    expected: "success"
+    priority: P2
+
+  - id: TC_LOGIN_007
+    desc: "性能故障用户登录"
+    username: "performance_glitch_user"
+    password: "secret_sauce"
+    expected: "success"
+    priority: P2

@@ -1,0 +1,84 @@
+# ReqRes.in API 测试数据
+# 目标站点: https://reqres.in/api
+base_url: "https://reqres.in"
+
+users:
+  - id: TC_API_001
+    desc: "获取用户列表第1页"
+    method: GET
+    path: "/api/users"
+    params:
+      page: 1
+    expected_status: 200
+    expected_fields:
+      - "page"
+      - "data"
+      - "total"
+
+  - id: TC_API_002
+    desc: "获取单个用户"
+    method: GET
+    path: "/api/users/2"
+    expected_status: 200
+    expected_fields:
+      - "data.id"
+      - "data.email"
+
+  - id: TC_API_003
+    desc: "获取不存在的用户"
+    method: GET
+    path: "/api/users/9999"
+    expected_status: 404
+
+  - id: TC_API_004
+    desc: "创建新用户"
+    method: POST
+    path: "/api/users"
+    body:
+      name: "test_engineer"
+      job: "QA"
+    expected_status: 201
+    expected_fields:
+      - "name"
+      - "job"
+      - "id"
+      - "createdAt"
+
+  - id: TC_API_005
+    desc: "更新用户信息"
+    method: PUT
+    path: "/api/users/2"
+    body:
+      name: "updated_name"
+      job: "Senior QA"
+    expected_status: 200
+    expected_fields:
+      - "updatedAt"
+
+  - id: TC_API_006
+    desc: "删除用户"
+    method: DELETE
+    path: "/api/users/2"
+    expected_status: 204
+
+auth:
+  - id: TC_AUTH_001
+    desc: "正确凭据登录"
+    method: POST
+    path: "/api/login"
+    body:
+      email: "eve.holt@reqres.in"
+      password: "cityslicka"
+    expected_status: 200
+    expected_fields:
+      - "token"
+
+  - id: TC_AUTH_002
+    desc: "缺少密码登录"
+    method: POST
+    path: "/api/login"
+    body:
+      email: "peter@klaven.com"
+    expected_status: 400
+    expected_fields:
+      - "error"
