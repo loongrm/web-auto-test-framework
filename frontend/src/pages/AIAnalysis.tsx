@@ -1,28 +1,26 @@
 import { useState } from 'react'
 import {
-    Card, Tabs, Form, Input, Button, Alert, Spin, Tag, Space,
-    Descriptions, List, Typography, Divider,
+    Card, Tabs, Form, Input, Button, Alert, Spin, Tag, Space, Select,
+    Descriptions, List, Typography,
 } from 'antd'
-import {
-    BulbOutlined, CodeOutlined, ToolOutlined,
-} from '@ant-design/icons'
+import { BulbOutlined, CodeOutlined, ToolOutlined } from '@ant-design/icons'
 import { analyzeFailure, generateCases, healLocator } from '../api'
 
 const { TextArea } = Input
 const { Text, Paragraph } = Typography
 
-// ─── 失败分析 Tab ─────────────────────────────────────────────────────────────
+// 失败分析
 function FailureAnalyzer() {
     const [loading, setLoading] = useState(false)
-    const [result, setResult] = useState<any>(null)
+    const [result, setResult] = useState<Record<string, unknown> | null>(null)
     const [form] = Form.useForm()
 
-    const handle = async (values: any) => {
+    const handle = async (values: { error_log: string; test_code?: string; test_case_name?: string }) => {
         setLoading(true)
         setResult(null)
         try {
             const r = await analyzeFailure(values)
-            setResult(r)
+            setResult(r as unknown as Record<string, unknown>)
         } finally {
             setLoading(false)
         }
@@ -30,14 +28,15 @@ function FailureAnalyzer() {
 
     const typeColor: Record<string, string> = {
         element_not_found: 'orange', timeout: 'red', assertion_error: 'volcano',
-        network_error: 'blue', environment_issue: 'purple', application_bug: 'magenta',
-        test_data_issue: 'gold', unknown: 'default',
+        network_error: 'blue', environment_issue: 'purple',
+        application_bug: 'magenta', test_data_issue: 'gold', unknown: 'default',
     }
 
     return (
         <div>
             <Form form={form} layout="vertical" onFinish={handle}>
-                <Form.Item name="error_log" label="错误日志" rules={[{ required: true, message: '请输入错误日志' }]}>
+                <Form.Item name="error_log" label="错误日志"
+                    rules={[{ required: true, message: '请输入错误日志' }]}>
                     <TextArea rows={6} placeholder="粘贴 pytest 错误输出或 traceback..." />
                 </Form.Item>
                 <Form.Item name="test_code" label="测试代码（可选）">
@@ -55,32 +54,30 @@ function FailureAnalyzer() {
 
             {result && (
                 <Card style={{ marginTop: 24 }} title="分析结果">
-                    {!result.available ? (
+                    {!result['available'] ? (
                         <Alert type="warning" message="AI 服务不可用，请配置 OPENAI_API_KEY" />
                     ) : (
-                        <>
-                            <Descriptions bordered size="small" column={1}>
-                                <Descriptions.Item label="失败类型">
-                                    <Tag color={typeColor[result.failure_type] || 'default'}>
-                                        {result.failure_type}
-                                    </Tag>
-                                </Descriptions.Item>
-                                <Descriptions.Item label="根本原因">{result.root_cause}</Descriptions.Item>
-                                <Descriptions.Item label="修复建议">
-                                    <Paragraph style={{ margin: 0, whiteSpace: 'pre-wrap' }}>
-                                        {result.suggestion}
-                                    </Paragraph>
-                                </Descriptions.Item>
-                                <Descriptions.Item label="置信度">
-                                    {Math.round((result.confidence || 0) * 100)}%
-                                </Descriptions.Item>
-                                <Descriptions.Item label="是否 Flaky">
-                                    <Tag color={result.is_flaky ? 'orange' : 'green'}>
-                                        {result.is_flaky ? `是 - ${result.flaky_reason}` : '否'}
-                                    </Tag>
-                                </Descriptions.Item>
-                            </Descriptions>
-                        </>
+                        <Descriptions bordered size="small" column={1}>
+                            <Descriptions.Item label="失败类型">
+                                <Tag color={typeColor[String(result['failure_type'])] || 'default'}>
+                                    {String(result['failure_type'])}
+                                </Tag>
+                            </Descriptions.Item>
+                            <Descriptions.Item label="根本原因">{String(result['root_cause'])}</Descriptions.Item>
+                            <Descriptions.Item label="修复建议">
+                                <Paragraph style={{ margin: 0, whiteSpace: 'pre-wrap' }}>
+                                    {String(result['suggestion'])}
+                                </Paragraph>
+                            </Descriptions.Item>
+                            <Descriptions.Item label="置信度">
+                                {Math.round(Number(result['confidence']) * 100)}%
+                            </Descriptions.Item>
+                            <Descriptions.Item label="是否 Flaky">
+                                <Tag color={result['is_flaky'] ? 'orange' : 'green'}>
+                                    {result['is_flaky'] ? `是 - ${result['flaky_reason']}` : '否'}
+                                </Tag>
+                            </Descriptions.Item>
+                        </Descriptions>
                     )}
                 </Card>
             )}
@@ -88,13 +85,15 @@ function FailureAnalyzer() {
     )
 }
 
-// ─── 用例生成 Tab ─────────────────────────────────────────────────────────────
+// 用例生成
 function CaseGenerator() {
     const [loading, setLoading] = useState(false)
-    const [result, setResult] = useState<any>(null)
+    const [result, setResult] = useState<{
+        available: boolean; cases?: unknown[]; yaml?: string; count?: number; type?: string
+    } | null>(null)
     const [form] = Form.useForm()
 
-    const handle = async (values: any) => {
+    const handle = async (values: { user_story: string; case_type: 'ui' | 'api' }) => {
         setLoading(true)
         setResult(null)
         try {
@@ -113,19 +112,15 @@ function CaseGenerator() {
                 initialValues={{ case_type: 'ui' }}>
                 <Form.Item name="user_story" label="用户故事 / 功能描述"
                     rules={[{ required: true, message: '请输入用户故事' }]}>
-                    <TextArea rows={5}
-                        placeholder={`例：用户可以通过用户名密码登录系统。\n登录成功后跳转到主页，显示欢迎信息。\n连续3次失败后锁定账号5分钟。`}
-                    />
+                    <TextArea rows={5} placeholder={
+                        `例：用户可以通过用户名密码登录系统。\n登录成功后跳转到主页，显示欢迎信息。\n连续3次失败后锁定账号5分钟。`
+                    } />
                 </Form.Item>
                 <Form.Item name="case_type" label="用例类型">
-                    <Input.Group>
-                        <Form.Item name="case_type" noStyle>
-                            <select style={{ padding: '4px 8px', border: '1px solid #d9d9d9', borderRadius: 4 }}>
-                                <option value="ui">UI 测试用例</option>
-                                <option value="api">API 测试用例</option>
-                            </select>
-                        </Form.Item>
-                    </Input.Group>
+                    <Select style={{ width: 160 }}>
+                        <Select.Option value="ui">UI 测试用例</Select.Option>
+                        <Select.Option value="api">API 测试用例</Select.Option>
+                    </Select>
                 </Form.Item>
                 <Button type="primary" htmlType="submit" loading={loading} icon={<CodeOutlined />}>
                     AI 生成测试用例
@@ -135,27 +130,32 @@ function CaseGenerator() {
             {loading && <Spin style={{ margin: 24 }} tip="AI 生成中..." />}
 
             {result && (
-                <Card style={{ marginTop: 24 }} title={`生成结果 (${result.count ?? 0} 条)`}>
+                <Card style={{ marginTop: 24 }} title={`生成结果（${result.count ?? 0} 条）`}>
                     {!result.available ? (
                         <Alert type="warning" message="AI 服务不可用，请配置 OPENAI_API_KEY" />
                     ) : result.cases ? (
                         <List
-                            dataSource={result.cases}
-                            renderItem={(item: any) => (
+                            dataSource={result.cases as Record<string, unknown>[]}
+                            renderItem={(item) => (
                                 <List.Item>
                                     <List.Item.Meta
                                         title={
                                             <Space>
-                                                <Tag color={priorityColor[item.priority] || 'default'}>{item.priority}</Tag>
-                                                <Text strong>{item.id}</Text>
-                                                <span>{item.title}</span>
+                                                <Tag color={priorityColor[String(item['priority'])] || 'default'}>
+                                                    {String(item['priority'])}
+                                                </Tag>
+                                                <Text strong>{String(item['id'])}</Text>
+                                                <span>{String(item['title'])}</span>
                                             </Space>
                                         }
                                         description={
                                             <div>
-                                                <div><Text type="secondary">前置: </Text>{item.precondition}</div>
-                                                <div><Text type="secondary">步骤: </Text>{item.steps?.join(' → ')}</div>
-                                                <div><Text type="secondary">预期: </Text>{item.expected}</div>
+                                                <div><Text type="secondary">前置: </Text>{String(item['precondition'])}</div>
+                                                <div>
+                                                    <Text type="secondary">步骤: </Text>
+                                                    {(item['steps'] as string[] || []).join(' → ')}
+                                                </div>
+                                                <div><Text type="secondary">预期: </Text>{String(item['expected'])}</div>
                                             </div>
                                         }
                                     />
@@ -173,13 +173,17 @@ function CaseGenerator() {
     )
 }
 
-// ─── 定位器修复 Tab ───────────────────────────────────────────────────────────
+// 定位器修复
 function LocatorHealer() {
     const [loading, setLoading] = useState(false)
-    const [result, setResult] = useState<any>(null)
+    const [result, setResult] = useState<{
+        broken_selector: string; alternatives: string[]; available: boolean
+    } | null>(null)
     const [form] = Form.useForm()
 
-    const handle = async (values: any) => {
+    const handle = async (values: {
+        broken_selector: string; page_html: string; element_purpose?: string
+    }) => {
         setLoading(true)
         setResult(null)
         try {
@@ -202,7 +206,7 @@ function LocatorHealer() {
                 </Form.Item>
                 <Form.Item name="page_html" label="页面 HTML 片段"
                     rules={[{ required: true }]}>
-                    <TextArea rows={8} placeholder='粘贴页面 HTML，可通过浏览器开发者工具复制...' />
+                    <TextArea rows={8} placeholder='粘贴页面 HTML...' />
                 </Form.Item>
                 <Button type="primary" htmlType="submit" loading={loading} icon={<ToolOutlined />}>
                     AI 修复选择器
@@ -217,11 +221,9 @@ function LocatorHealer() {
                         <Alert type="warning" message="AI 服务不可用" />
                     ) : (
                         <>
-                            <Alert
-                                type="info"
+                            <Alert type="info"
                                 message={`失效选择器: ${result.broken_selector}`}
-                                style={{ marginBottom: 16 }}
-                            />
+                                style={{ marginBottom: 16 }} />
                             <List
                                 dataSource={result.alternatives || []}
                                 renderItem={(sel: string, idx: number) => (
@@ -239,7 +241,7 @@ function LocatorHealer() {
     )
 }
 
-// ─── 主页面 ───────────────────────────────────────────────────────────────────
+// 主页面
 export default function AIAnalysis() {
     const tabs = [
         { key: 'analyze', label: '失败根因分析', icon: <BulbOutlined />, children: <FailureAnalyzer /> },

@@ -1,37 +1,27 @@
 import { useState, useEffect, useRef } from 'react'
 import {
-    Card, Form, Select, Button, Alert, Tag, Space, Divider, Typography,
-    Radio, Input,
+    Card, Form, Select, Button, Alert, Tag, Space,
+    Divider, Typography, Radio, Input,
 } from 'antd'
 import { PlayCircleOutlined, ReloadOutlined } from '@ant-design/icons'
-import { runTests, getTaskStatus } from '../api'
+import { runTests, getTaskStatus, type TaskStatus } from '../api'
 
 const { Text, Paragraph } = Typography
 
-interface TaskResult {
+interface TaskState extends TaskStatus {
     task_id: string
-    run_id?: number
-    status: string
-    stdout?: string
-    stderr?: string
-    returncode?: number
-    passed?: number
-    failed?: number
-    total?: number
 }
 
 export default function TestRunner() {
     const [form] = Form.useForm()
     const [loading, setLoading] = useState(false)
-    const [task, setTask] = useState<TaskResult | null>(null)
+    const [task, setTask] = useState<TaskState | null>(null)
     const [polling, setPolling] = useState(false)
     const pollRef = useRef<ReturnType<typeof setInterval>>()
 
     const stopPolling = () => {
-        if (pollRef.current) {
-            clearInterval(pollRef.current)
-            pollRef.current = undefined
-        }
+        if (pollRef.current) clearInterval(pollRef.current)
+        pollRef.current = undefined
         setPolling(false)
     }
 
@@ -39,7 +29,7 @@ export default function TestRunner() {
         setPolling(true)
         pollRef.current = setInterval(async () => {
             const status = await getTaskStatus(taskId)
-            setTask(prev => ({ ...prev!, ...status }))
+            setTask((prev) => prev ? { ...prev, ...status } : { task_id: taskId, ...status })
             if (status.status !== 'running') {
                 stopPolling()
                 setLoading(false)
@@ -49,21 +39,23 @@ export default function TestRunner() {
 
     useEffect(() => () => stopPolling(), [])
 
-    const handleRun = async (values: any) => {
+    const handleRun = async (values: { module: string; env: string; markers?: string }) => {
         setLoading(true)
         setTask(null)
         try {
             const result = await runTests(values)
-            setTask(result)
+            setTask({ task_id: result.task_id, status: result.status, run_id: result.run_id })
             startPolling(result.task_id)
-        } catch (e: any) {
-            setTask({ task_id: '', status: 'error', stdout: e.message })
+        } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : '请求失败'
+            setTask({ task_id: '', status: 'error', stdout: msg })
             setLoading(false)
         }
     }
 
     const statusColor: Record<string, string> = {
-        accepted: 'blue', running: 'processing', success: 'success', failed: 'error',
+        accepted: 'blue', running: 'processing',
+        success: 'success', failed: 'error',
     }
 
     return (
@@ -94,12 +86,8 @@ export default function TestRunner() {
                     </Form.Item>
                     <Form.Item>
                         <Space>
-                            <Button
-                                type="primary"
-                                icon={<PlayCircleOutlined />}
-                                htmlType="submit"
-                                loading={loading}
-                            >
+                            <Button type="primary" icon={<PlayCircleOutlined />}
+                                htmlType="submit" loading={loading}>
                                 {loading ? '执行中...' : '开始执行'}
                             </Button>
                             {loading && (
@@ -118,24 +106,20 @@ export default function TestRunner() {
                         <Space>
                             <span>执行结果</span>
                             <Tag color={statusColor[task.status] || 'default'}>{task.status}</Tag>
-                            {task.task_id && <Text type="secondary">任务ID: {task.task_id}</Text>}
+                            {task.task_id && <Text type="secondary">任务: {task.task_id}</Text>}
                             {polling && <Tag color="blue">轮询中...</Tag>}
                         </Space>
                     }
                 >
                     {task.status === 'success' && (
-                        <Alert
-                            type="success"
-                            message={`✅ 测试完成 | 通过: ${task.passed ?? '-'} | 失败: ${task.failed ?? '-'} | 总数: ${task.total ?? '-'}`}
-                            style={{ marginBottom: 16 }}
-                        />
+                        <Alert type="success"
+                            message={`✅ 完成 | 通过: ${task.passed ?? '-'} | 失败: ${task.failed ?? '-'} | 总: ${task.total ?? '-'}`}
+                            style={{ marginBottom: 16 }} />
                     )}
                     {task.status === 'failed' && (
-                        <Alert
-                            type="error"
-                            message={`❌ 存在失败用例 | 通过: ${task.passed ?? '-'} | 失败: ${task.failed ?? '-'} | 总数: ${task.total ?? '-'}`}
-                            style={{ marginBottom: 16 }}
-                        />
+                        <Alert type="error"
+                            message={`❌ 失败用例存在 | 通过: ${task.passed ?? '-'} | 失败: ${task.failed ?? '-'} | 总: ${task.total ?? '-'}`}
+                            style={{ marginBottom: 16 }} />
                     )}
                     {task.stdout && (
                         <>
