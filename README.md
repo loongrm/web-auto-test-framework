@@ -10,16 +10,16 @@
 
 ## 项目架构
 1. **React 前端看板**
-   - 模块：Dashboard / TestRunner / AI 分析
-   - 通信：HTTP /api
+   - 模块：Dashboard/TestRunner/AI分析
+   - 通信：HTTP/api
 
 2. **FastAPI 后端服务（:8000）**
-   - 接口：/runner /reports /ai /screenshots(静态)
+   - 接口：/runner/reports/ai/screenshots(静态)
 
 3. **底层依赖**
    - Pytest 引擎（UI + API）
    - SQLite DB（结果持久化）
-   - OpenAI API（AI 分析）
+   - OpenAI API（AI分析）
 
 4. **CI/CD**
    - Jenkins + Docker
@@ -55,13 +55,13 @@ cd frontend && npm install && cd ..
 
 # 配置环境变量
 cp .env.example .env
-# 编辑 .env，填入真实值（OPENAI_API_KEY 可选）
+# 编辑 .env，填入真实值（OPENAI_API_KEY可选）
 ```
 
 ### 2. 运行测试
 
 ```bash
-# 全量测试（生成 Allure 报告）
+# 全量测试（生成Allure报告）
 pytest
 
 # 按标签运行
@@ -162,7 +162,7 @@ auto-test-platform/
 
 ## AI功能说明
 
-> **AI 功能为可选模块**，未配置 `OPENAI_API_KEY` 时所有 AI 接口自动降级，不影响正常测试执行。
+> **AI功能为可选模块**，未配置`OPENAI_API_KEY`时所有AI接口自动降级，不影响正常测试执行。
 
 | 功能 | 入口 | 说明 |
 |------|------|------|
@@ -174,22 +174,22 @@ auto-test-platform/
 ## Jenkins配置
 
 1. 安装插件：Allure、Pipeline、Git、Email Extension
-2. 创建 Pipeline 任务，选择 `Pipeline from SCM`
-3. 配置环境变量（在 Credentials 中存储敏感信息）：
-   - `WECHAT_WEBHOOK`：企业微信 Webhook URL
+2. 创建Pipeline任务，选择`Pipeline from SCM`
+3. 配置环境变量（在Credentials中存储敏感信息）：
+   - `WECHAT_WEBHOOK`：企业微信Webhook URL
    - `TEAM_EMAIL`：故障通知邮箱
-4. 流水线类型（`PIPELINE_TYPE` 参数）：
+4. 流水线类型（`PIPELINE_TYPE`参数）：
    - `single`：单环境顺序执行
-   - `multi-env`：DEV + TEST 并行执行，适合合并主干时
+   - `multi-env`：DEV + TEST并行执行，适合合并主干时用
    - `smoke-only`：仅执行冒烟用例，适合快速验证
 
 ## 项目要点
 
 - **分层设计**：Page Object + 数据驱动，用例/数据/页面三层解耦
-- **AI 集成**：GPT-4o 多模态分析失败截图，智能输出根因和修复方案
-- **工程化**：FastAPI + React 完整前后端分离，SQLite 持久化执行历史
-- **CI/CD**：Jenkins 多环境并行流水线，Docker 容器化，企业微信实时通知
-- **可观测性**：Allure 报告 + 失败截图 + 结构化日志，三位一体排障链路
+- **AI 集成**：GPT-4o多模态分析失败截图，智能输出根因和修复方案
+- **工程化**：FastAPI+React完整前后端分离，SQLite持久化执行历史
+- **CI/CD**：Jenkins多环境并行流水线，Docker容器化，企业微信实时通知
+- **可观测性**：Allure报告 + 失败截图 + 结构化日志，三位一体排障链路
 
 ## License
 
