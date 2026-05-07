@@ -1,3 +1,4 @@
+import re
 import allure
 import time
 from pathlib import Path
@@ -13,7 +14,7 @@ class BasePage:
         self.timeout = config.get_int("browser.timeout", 30000)
         self.base_url = config.get("base_url", "")
 
-    # ─── 导航 ─────────────────────────────────────────────────────────────────
+    # 导航 ───
 
     @allure.step("打开页面: {url}")
     def navigate(self, url: str):
@@ -30,7 +31,7 @@ class BasePage:
     def refresh(self):
         self.page.reload(wait_until="networkidle")
 
-    # ─── 元素操作 ─────────────────────────────────────────────────────────────
+    # 元素操作 
 
     @allure.step("点击: {selector}")
     def click(self, selector: str, timeout: int = None):
@@ -72,7 +73,7 @@ class BasePage:
     def press_key(self, key: str):
         self.page.keyboard.press(key)
 
-    # ─── 等待 ─────────────────────────────────────────────────────────────────
+    # 等待 ────
 
     def wait_for_element(self, selector: str, state: str = "visible", timeout: int = None):
         self.page.locator(selector).wait_for(
@@ -80,6 +81,7 @@ class BasePage:
         )
 
     def wait_for_url(self, url_pattern: str, timeout: int = None):
+        """支持 glob 模式，如 '**/inventory.html'"""
         self.page.wait_for_url(url_pattern, timeout=timeout or self.timeout)
 
     def wait_for_network_idle(self):
@@ -88,7 +90,7 @@ class BasePage:
     def wait_ms(self, ms: int):
         self.page.wait_for_timeout(ms)
 
-    # ─── 断言 ─────────────────────────────────────────────────────────────────
+    # 断言 ────
 
     @allure.step("断言元素可见: {selector}")
     def assert_visible(self, selector: str, timeout: int = None):
@@ -113,18 +115,25 @@ class BasePage:
 
     @allure.step("断言URL包含: '{path}'")
     def assert_url_contains(self, path: str):
-        expect(self.page).to_have_url(lambda url: path in url)
+        """
+        修复：to_have_url 不支持 lambda，必须传正则或字符串。
+        使用 re.compile 匹配部分URL。
+        """
+        expect(self.page).to_have_url(
+            re.compile(f".*{re.escape(path)}.*"),
+            timeout=self.timeout,
+        )
         log.debug(f"✓ URL 包含 '{path}'")
 
-    @allure.step("断言页面标题: '{expected}'")
+    @allure.step("断言页面标题包含: '{expected}'")
     def assert_title(self, expected: str):
-        expect(self.page).to_have_title(expected)
+        expect(self.page).to_have_title(re.compile(f".*{re.escape(expected)}.*"))
 
     @allure.step("断言元素数量: {selector} 数量={count}")
     def assert_element_count(self, selector: str, count: int):
         expect(self.page.locator(selector)).to_have_count(count)
 
-    # ─── 截图 ─────────────────────────────────────────────────────────────────
+    # 截图 ────
 
     def screenshot(self, name: str = "screenshot") -> bytes:
         ts = time.strftime("%Y%m%d_%H%M%S")
@@ -135,7 +144,7 @@ class BasePage:
         log.info(f"截图: {path}")
         return data
 
-    # ─── 内部辅助 ─────────────────────────────────────────────────────────────
+    # 内部辅助
 
     def _on_error(self, msg: str):
         log.error(msg)

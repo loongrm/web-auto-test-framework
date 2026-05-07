@@ -12,6 +12,7 @@ reports/
 logs/
 screenshots/
 .allure_cache/
+*.txt
 
 # 环境配置
 .env

@@ -4,9 +4,7 @@ from core.log_factory import log
 
 
 class DashboardPage(BasePage):
-    """
-    SauceDemo 商品列表页（登录后主页）
-    """
+    """SauceDemo 商品列表页"""
 
     TITLE           = ".title"
     PRODUCT_LIST    = ".inventory_list"
@@ -20,7 +18,8 @@ class DashboardPage(BasePage):
 
     @allure.step("验证进入商品列表页")
     def verify_on_page(self) -> "DashboardPage":
-        self.assert_url_contains("inventory.html")
+        """用 glob 等待 URL，再断言列表可见"""
+        self.wait_for_url("**/inventory.html", timeout=10000)
         self.assert_visible(self.PRODUCT_LIST)
         log.info("✓ 已进入商品列表页")
         return self
@@ -28,7 +27,7 @@ class DashboardPage(BasePage):
     def get_product_count(self) -> int:
         return self.count_elements(self.PRODUCT_ITEM)
 
-    def get_product_names(self) -> list[str]:
+    def get_product_names(self) -> list:
         items = self.page.locator(self.PRODUCT_NAME).all()
         return [item.inner_text() for item in items]
 
@@ -44,7 +43,6 @@ class DashboardPage(BasePage):
 
     @allure.step("按条件排序: {sort_type}")
     def sort_products(self, sort_type: str) -> "DashboardPage":
-        """sort_type: az | za | lohi | hilo"""
         self.select_option(self.SORT_SELECT, sort_type)
         return self
 
@@ -53,5 +51,6 @@ class DashboardPage(BasePage):
         self.click(self.MENU_BUTTON)
         self.assert_visible(self.LOGOUT_LINK)
         self.click(self.LOGOUT_LINK)
-        self.assert_url_contains("www.saucedemo.com")
+        # 等待回到登录页（glob 模式）
+        self.wait_for_url("https://www.saucedemo.com/", timeout=8000)
         log.info("✓ 已退出登录")

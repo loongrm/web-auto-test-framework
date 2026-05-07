@@ -249,7 +249,7 @@ export default function AIAnalysis() {
         { key: 'heal', label: '选择器修复', icon: <ToolOutlined />, children: <LocatorHealer /> },
     ]
     return (
-        <Card title="🤖 AI 智能辅助">
+        <Card title="AI智能辅助">
             <Tabs items={tabs} />
         </Card>
     )

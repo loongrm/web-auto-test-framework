@@ -15,7 +15,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     const navigate = useNavigate()
     const { pathname } = useLocation()
 
-    // 高亮报告详情页时选中 dashboard
+    // 高亮报告详情页时选中dashboard
     const selectedKey = pathname.startsWith('/reports') ? '/dashboard' : pathname
 
     const menuItems = [
@@ -36,7 +36,6 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                     borderBottom: '1px solid rgba(255,255,255,0.08)',
                     marginBottom: 8,
                 }}>
-                    <div style={{ fontSize: 22, textAlign: 'center' }}>🧪</div>
                     <div style={{
                         color: '#fff',
                         fontSize: 13,
@@ -45,7 +44,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                         letterSpacing: 1,
                         marginTop: 4,
                     }}>
-                        AutoTest Platform
+                        自动化测试平台
                     </div>
                 </div>
                 <Menu
@@ -66,7 +65,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                     alignItems: 'center',
                 }}>
                     <Title level={5} style={{ margin: 0, color: '#1a1a2e' }}>
-                        企业级 AI 增强自动化测试平台
+                        自动化测试平台
                     </Title>
                 </Header>
                 <Content style={{

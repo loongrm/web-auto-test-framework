@@ -60,7 +60,7 @@ export default function TestRunner() {
 
     return (
         <div>
-            <Card title="🚀 触发测试执行" style={{ marginBottom: 24 }}>
+            <Card title="执行测试" style={{ marginBottom: 24 }}>
                 <Form
                     form={form}
                     layout="inline"
@@ -113,12 +113,12 @@ export default function TestRunner() {
                 >
                     {task.status === 'success' && (
                         <Alert type="success"
-                            message={`✅ 完成 | 通过: ${task.passed ?? '-'} | 失败: ${task.failed ?? '-'} | 总: ${task.total ?? '-'}`}
+                            message={`✅完成 | 通过: ${task.passed ?? '-'} | 失败: ${task.failed ?? '-'} | 总: ${task.total ?? '-'}`}
                             style={{ marginBottom: 16 }} />
                     )}
                     {task.status === 'failed' && (
                         <Alert type="error"
-                            message={`❌ 失败用例存在 | 通过: ${task.passed ?? '-'} | 失败: ${task.failed ?? '-'} | 总: ${task.total ?? '-'}`}
+                            message={`❌失败用例存在 | 通过: ${task.passed ?? '-'} | 失败: ${task.failed ?? '-'} | 总: ${task.total ?? '-'}`}
                             style={{ marginBottom: 16 }} />
                     )}
                     {task.stdout && (

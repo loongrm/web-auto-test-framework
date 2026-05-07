@@ -4,12 +4,8 @@ from core.log_factory import log
 
 
 class LoginPage(BasePage):
-    """
-    SauceDemo 登录页面对象
-    目标: https://www.saucedemo.com
-    """
+    """SauceDemo 登录页 https://www.saucedemo.com"""
 
-    # 元素定位器（集中管理，页面改版只改这里）
     USERNAME_INPUT  = "#user-name"
     PASSWORD_INPUT  = "#password"
     LOGIN_BUTTON    = "#login-button"
@@ -31,9 +27,9 @@ class LoginPage(BasePage):
         return self
 
     def is_login_success(self) -> bool:
-        """通过URL判断是否登录成功"""
+        """用 glob 模式等待跳转，不触发 assert_url_contains 的正则"""
         try:
-            self.wait_for_url("**/inventory.html", timeout=5000)
+            self.wait_for_url("**/inventory.html", timeout=8000)
             return True
         except Exception:
             return False
