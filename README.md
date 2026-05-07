@@ -1,4 +1,4 @@
-# 企业级 AI 增强 Web 自动化测试平台
+# AI增强版Web自动化测试平台
 
 [![Python](https://img.shields.io/badge/Python-3.12-blue.svg)](https://python.org)
 [![Playwright](https://img.shields.io/badge/Playwright-1.49-green.svg)](https://playwright.dev)
