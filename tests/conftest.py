@@ -4,7 +4,7 @@ import allure
 import os
 from pathlib import Path
 from datetime import datetime
-from playwright.sync_api import sync_playwright, Browser, BrowserContext, Page
+from playwright.sync_api import sync_playwright, Page
 from core.config_reader import config
 from core.log_factory import log
 from core.allure_helper import AllureHelper
@@ -23,12 +23,13 @@ def playwright_instance():
 
 @pytest.fixture(scope="session")
 def browser(playwright_instance):
+    """会话级浏览器，所有用例共用一个进程"""
     browser_type_name = config.get("browser.type", "chromium")
-    headless = config.get_bool("browser.headless", False)
-    slow_mo  = config.get_int("browser.slow_mo", 0)
+    headless          = config.get_bool("browser.headless", False)
+    slow_mo           = config.get_int("browser.slow_mo", 0)
 
     launcher = getattr(playwright_instance, browser_type_name)
-    _browser: Browser = launcher.launch(
+    _browser = launcher.launch(
         headless=headless,
         slow_mo=slow_mo,
         args=["--no-sandbox", "--disable-dev-shm-usage"],
@@ -40,7 +41,8 @@ def browser(playwright_instance):
 
 
 @pytest.fixture(scope="function")
-def context(browser) -> BrowserContext:
+def context(browser):
+    """每条用例独立上下文，隔离 Cookie/Storage"""
     ctx = browser.new_context(
         viewport={
             "width":  config.get_int("browser.viewport.width",  1920),
@@ -54,7 +56,8 @@ def context(browser) -> BrowserContext:
 
 
 @pytest.fixture(scope="function")
-def page(context) -> Page:
+def page(context):
+    """每条用例独立页面"""
     _page = context.new_page()
     yield _page
     _page.close()
@@ -66,11 +69,11 @@ def pytest_runtest_makereport(item, call):
     report  = outcome.get_result()
 
     if report.when == "call" and report.failed:
-        _page: Page = item.funcargs.get("page")
+        _page = item.funcargs.get("page")
         if _page:
             try:
-                ts       = datetime.now().strftime("%Y%m%d_%H%M%S")
-                shot_dir = Path(config.get("screenshot.dir", "screenshots"))
+                ts        = datetime.now().strftime("%Y%m%d_%H%M%S")
+                shot_dir  = Path(config.get("screenshot.dir", "screenshots"))
                 shot_dir.mkdir(exist_ok=True)
                 shot_path = shot_dir / f"FAIL_{item.name}_{ts}.png"
                 data = _page.screenshot(
@@ -92,11 +95,13 @@ def pytest_runtest_makereport(item, call):
 @pytest.fixture(scope="session")
 def api_client():
     from tests.api.client.http_client import HttpClient
-    return HttpClient(base_url=config.get("api_base_url", "https://jsonplaceholder.typicode.com"))
+    return HttpClient(
+        base_url=config.get("api_base_url", "https://jsonplaceholder.typicode.com")
+    )
 
 
 def pytest_sessionfinish(session, exitstatus):
-    # 1. 写入 Allure 环境信息
+    # 写入 Allure 环境信息
     AllureHelper.set_environment_info(
         环境=os.getenv("TEST_ENV", "dev"),
         浏览器=config.get("browser.type", "chromium"),
@@ -105,7 +110,7 @@ def pytest_sessionfinish(session, exitstatus):
         平台=__import__("platform").platform(),
     )
 
-    # 2. 写入中文分类配置
+    # 写入中文分类
     categories = [
         {
             "name": "产品缺陷 - 断言失败",
@@ -123,11 +128,6 @@ def pytest_sessionfinish(session, exitstatus):
             "matchedStatuses": ["failed", "broken"],
         },
         {
-            "name": "元素未找到",
-            "messageRegex": ".*ElementHandle.*|.*locator.*|.*selector.*",
-            "matchedStatuses": ["failed", "broken"],
-        },
-        {
             "name": "API 状态码不匹配",
             "messageRegex": ".*状态码不匹配.*",
             "matchedStatuses": ["failed"],
@@ -137,7 +137,6 @@ def pytest_sessionfinish(session, exitstatus):
             "matchedStatuses": ["skipped"],
         },
     ]
-
     results_dir = Path("reports/allure-results")
     results_dir.mkdir(parents=True, exist_ok=True)
     with open(results_dir / "categories.json", "w", encoding="utf-8") as f:

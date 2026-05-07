@@ -217,3 +217,14 @@ async def _generate_ai_summary_text(run_id: int, failed_cases: list, stats: dict
     except Exception as e:
         log.warning(f"[run {run_id}] AI 文本摘要失败: {e}")
         return ""
+    
+@router.post("/runs/{run_id}/ai-summary/clear")
+async def clear_ai_summary_cache(run_id: int):
+    """清除 AI 摘要缓存，下次请求时重新生成"""
+    from core.db_client import TestRun
+    async with DBClient.get_session() as session:
+        run = await session.get(TestRun, run_id)
+        if run:
+            run.ai_summary = None
+            await session.commit()
+    return {"success": True, "message": f"Run {run_id} 的 AI 摘要缓存已清除"}
