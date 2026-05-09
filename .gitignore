@@ -26,8 +26,6 @@ data/*.sqlite
 frontend/node_modules/
 frontend/dist/
 frontend/.vite/
-*.ico
-*.png
 
 # IDE
 .idea/
