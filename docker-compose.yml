@@ -1,7 +1,7 @@
 version: '3.9'
 
 services:
-  # ─── 后端 API 服务 ────────────────────────────────────────
+  # 后端API服务
   backend:
     build: .
     command: uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
@@ -17,7 +17,7 @@ services:
     networks:
       - test-net
 
-  # ─── 测试执行容器 ─────────────────────────────────────────
+  # 测试执行容器
   test-runner:
     build: .
     command: >
@@ -36,7 +36,7 @@ services:
     profiles:
       - test # 使用 docker compose --profile test up 单独启动
 
-  # ─── Allure 报告服务 ──────────────────────────────────────
+  # Allure报告服务
   allure:
     image: frankescobar/allure-docker-service:latest
     environment:
