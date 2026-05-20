@@ -331,23 +331,23 @@ docker compose --profile test run test-runner
 
 | 变量 | 必填 | 默认值 | 说明 |
 |------|:----:|--------|------|
-| `TEST_ENV` | 否 | `dev` | 运行环境：`dev` / `test` / `prod` |
-| `TEST_USER` | 是 | — | 被测应用登录用户名 |
-| `TEST_PASSWORD` | 是 | — | 被测应用登录密码 |
-| `DB_URL` | 否 | SQLite | 数据库连接串，MySQL 示例：`mysql+aiomysql://user:pass@localhost:3306/testdb` |
-| `OPENAI_API_KEY` | 否 | — | OpenAI Key，未填则 AI 功能自动降级 |
-| `OPENAI_BASE_URL` | 否 | `https://api.openai.com/v1` | 可替换为国内代理地址 |
-| `ALERT_EMAIL` | 否 | — | 邮件通知收件人，多个用英文逗号分隔 |
-| `SMTP_HOST` | 否 | `smtp.qq.com` | SMTP 服务器地址 |
-| `SMTP_PORT` | 否 | `465` | SMTP 端口 |
-| `SMTP_USER` | 否 | — | 发件人邮箱地址 |
-| `SMTP_PASSWORD` | 否 | — | 邮箱授权码（非登录密码） |
-| `SMTP_USE_SSL` | 否 | `true` | 是否使用 SSL |
-| `PLATFORM_URL` | 否 | `http://localhost:5173` | 前端看板地址（邮件跳转链接） |
-| `ALLURE_URL` | 否 | `http://localhost:5050` | Allure 报告服务地址 |
-| `JENKINS_URL` | 否 | — | Jenkins 地址 |
-| `JENKINS_USER` | 否 | — | Jenkins 用户名 |
-| `JENKINS_TOKEN` | 否 | — | Jenkins API Token |
+| `TEST_ENV` |  否  | `dev` | 运行环境：`dev` / `test` / `prod` |
+| `TEST_USER` |  是  | — | 被测应用登录用户名 |
+| `TEST_PASSWORD` |  是  | — | 被测应用登录密码 |
+| `DB_URL` |  否  | SQLite | 数据库连接串，MySQL 示例：`mysql+aiomysql://user:pass@localhost:3306/testdb` |
+| `OPENAI_API_KEY` |  否  | — | OpenAI Key，未填则 AI 功能自动降级 |
+| `OPENAI_BASE_URL` |  否  | `https://api.openai.com/v1` | 可替换为国内代理地址 |
+| `ALERT_EMAIL` |  否  | — | 邮件通知收件人，多个用英文逗号分隔 |
+| `SMTP_HOST` |  否  | `smtp.qq.com` | SMTP 服务器地址 |
+| `SMTP_PORT` |  否  | `465` | SMTP 端口 |
+| `SMTP_USER` |  否  | — | 发件人邮箱地址 |
+| `SMTP_PASSWORD` |  否  | — | 邮箱授权码（非登录密码） |
+| `SMTP_USE_SSL` |  否  | `true` | 是否使用 SSL |
+| `PLATFORM_URL` |  否  | `http://localhost:5173` | 前端看板地址（邮件跳转链接） |
+| `ALLURE_URL` |  否  | `http://localhost:5050` | Allure 报告服务地址 |
+| `JENKINS_URL` |  否  | — | Jenkins 地址 |
+| `JENKINS_USER` |  否  | — | Jenkins 用户名 |
+| `JENKINS_TOKEN` |  否  | — | Jenkins API Token |
 
 > **安全提示**：`.env` 已加入 `.gitignore`，请勿将包含真实密钥的 `.env` 文件提交到版本库。
 
@@ -378,12 +378,6 @@ docker compose --profile test run test-runner
 - **手动触发**：在 Jenkins 任务页面点击「立即构建」
 - **定时触发**：Jenkinsfile 中已配置每日 02:00 自动执行全量回归
 - **Webhook 触发**：在 GitHub / Gitee 仓库配置 Jenkins Webhook，代码推送后自动触发
-
-### 全局环境变量（在 Jenkins 系统配置中添加）
-
-| 变量名 | 说明 |
-|--------|------|
-| `TEAM_EMAIL` | 告警通知邮箱 |
 
 ---
 
