@@ -108,7 +108,7 @@ class AIFailureAnalyzer:
             results.append(result)
         return results
 
-    # ─── 内部方法 ──────────────────────────────────────────────────────────
+    # 内部方法
 
     def _build_messages(self, img_b64, error_log, test_code, test_case_name) -> list:
         system = """你是资深自动化测试工程师，专门分析测试失败原因。

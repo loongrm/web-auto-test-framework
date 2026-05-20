@@ -1,4 +1,5 @@
 import os
+import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,11 +13,18 @@ from core.log_factory import log
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    loop = asyncio.get_event_loop()
+    test_runner.set_main_loop(loop)
+    log.info(f"主事件循环已注册")
+
     await DBClient.init()
     log.info("数据库初始化完成")
+
     for d in ["reports/allure-results", "logs", "screenshots", "data"]:
         Path(d).mkdir(parents=True, exist_ok=True)
+
     yield
+
     log.info("服务已停止")
 
 
@@ -29,7 +37,11 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:5173",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -39,7 +51,6 @@ app.include_router(test_runner.router, prefix="/api/runner",  tags=["测试执�
 app.include_router(reports.router,     prefix="/api/reports", tags=["测试报告"])
 app.include_router(ai_analysis.router, prefix="/api/ai",      tags=["AI 分析"])
 
-# 静态文件：提供截图访问
 screenshots_dir = Path("screenshots")
 screenshots_dir.mkdir(exist_ok=True)
 app.mount("/screenshots", StaticFiles(directory=str(screenshots_dir)), name="screenshots")

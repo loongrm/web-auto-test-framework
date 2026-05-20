@@ -1,9 +1,9 @@
 browser:
-  headless: false
-  slow_mo: 50
+  headless: true
+  slow_mo: 0
 
 base_url: "https://www.saucedemo.com"
-api_base_url: "https://reqres.in"
+api_base_url: "https://jsonplaceholder.typicode.com"
 
 log:
   level: "DEBUG"

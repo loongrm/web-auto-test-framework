@@ -7,18 +7,20 @@ import {
 import {
     ArrowLeftOutlined, RobotOutlined, ReloadOutlined,
     WarningOutlined, BulbOutlined, CheckCircleOutlined,
-    ThunderboltOutlined,
+    ThunderboltOutlined, DollarOutlined,
 } from '@ant-design/icons'
 import { getAISummary, getRunDetail, type AISummary, type TestRunSummary } from '../api'
 
-const { Title, Paragraph, Text } = Typography
+const { Paragraph, Text } = Typography
 
 const riskColor: Record<string, string> = {
     high: 'red', medium: 'orange', low: 'green', unknown: 'default',
 }
 const riskLabel: Record<string, string> = {
-    high: '⚠️ 高风险', medium: '⚡ 中等风险', low: '✅ 低风险', unknown: '未知',
+    high: '⚠️ 高风险', medium: '⚡ 中等风险', low: '✅ 低风险', unknown: '未评估',
 }
+
+const billingUrl = 'https://platform.openai.com/settings/billing'
 
 export default function ReportSummary() {
     const { runId } = useParams<{ runId: string }>()
@@ -28,99 +30,92 @@ export default function ReportSummary() {
     const [loading, setLoading] = useState(true)
     const [regenerating, setRegenerating] = useState(false)
 
-    const fetchSummary = async (forceRegenerate = false) => {
+    const fetchSummary = async (forceNew = false) => {
         if (!runId) return
         const id = parseInt(runId)
-        if (forceRegenerate) {
+        if (forceNew) {
             setRegenerating(true)
             setSummary(null)
+            try {
+                await fetch(`/api/reports/runs/${id}/ai-summary/clear`, { method: 'POST' })
+            } catch {
+                // ignore
+            }
         }
         try {
-            const [r, s] = await Promise.all([
-                getRunDetail(id),
-                getAISummary(id),
-            ])
+            const [r, s] = await Promise.all([getRunDetail(id), getAISummary(id)])
             setRun(r)
             setSummary(s)
-        } catch (e) {
-            console.error(e)
+        } catch {
+            // ignore
         } finally {
             setLoading(false)
             setRegenerating(false)
         }
     }
 
-    // 强制重新生成：清除数据库缓存后再请求
-    const handleRegenerate = async () => {
-        if (!runId) return
-        setRegenerating(true)
-        setSummary(null)
-        try {
-            // 调用清除缓存接口，然后重新拉取
-            await fetch(`/api/reports/runs/${runId}/ai-summary/clear`, { method: 'POST' })
-        } catch {
-            // 即使接口不存在也继续
-        }
-        await fetchSummary(false)
-    }
-
     useEffect(() => { fetchSummary() }, [runId])
 
-    if (loading) return <Spin size="large" style={{ display: 'block', margin: '80px auto' }} />
+    if (loading) {
+        return <Spin size="large" style={{ display: 'block', margin: '80px auto' }} />
+    }
+
+    const summaryText = summary?.summary ?? ''
+    const isQuotaError = summaryText.includes('429') || summaryText.includes('quota') || summaryText.includes('insufficient')
+    const isNoContent = summaryText.trim() === ''
+    const isAvailable = summary?.available === true
+
+    const QuotaDescription = (
+        <div>
+            <p style={{ margin: '8px 0' }}>
+                当前 OpenAI 账户没有可用余额（HTTP 429 insufficient_quota），AI 功能暂时不可用。
+            </p>
+            <p style={{ margin: '8px 0' }}>
+                解决方法：前往{' '}
+                <a href={billingUrl} target="_blank" rel="noreferrer" style={{ color: '#1890ff' }}>
+                    platform.openai.com/settings/billing
+                </a>
+                {' '}充值最低 $5，充值后点击「重新生成摘要」即可。
+            </p>
+        </div>
+    )
+
+    const KeyDescription = (
+        <span>
+            请在 <code>.env</code> 中配置 <code>OPENAI_API_KEY</code>，
+            然后重启后端并点击「重新生成摘要」。
+        </span>
+    )
 
     return (
         <div>
-            {/* 顶部操作栏 */}
-            <Space style={{ marginBottom: 16 }}>
-                <Button
-                    icon={<ArrowLeftOutlined />}
-                    onClick={() => navigate(`/reports/${runId}`)}
-                >
+            <Space style={{ marginBottom: 16 }} wrap>
+                <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(`/reports/${runId}`)}>
                     返回失败详情
                 </Button>
-                <Tooltip title="清除缓存并重新调用 AI 生成摘要">
-                    <Button
-                        icon={<ReloadOutlined />}
-                        loading={regenerating}
-                        onClick={handleRegenerate}
-                    >
+                <Tooltip title="清除缓存并重新调用 AI 生成">
+                    <Button icon={<ReloadOutlined />} loading={regenerating} onClick={() => fetchSummary(true)}>
                         重新生成摘要
                     </Button>
                 </Tooltip>
                 {summary?.cached && (
-                    <Tag
-                        icon={<ThunderboltOutlined />}
-                        color="default"
-                        style={{ cursor: 'default' }}
-                    >
-                        来自缓存（点击"重新生成"获取最新）
-                    </Tag>
+                    <Tag icon={<ThunderboltOutlined />} color="default">来自缓存</Tag>
                 )}
             </Space>
 
-            {/* 运行基本数据 */}
             {run && (
                 <Row gutter={16} style={{ marginBottom: 24 }}>
                     {[
-                        {
-                            title: '通过率',
-                            value: run.pass_rate,
-                            suffix: '%',
-                            color: run.pass_rate >= 80 ? '#52c41a' : '#f5222d',
-                        },
+                        { title: '通过率', value: run.pass_rate, suffix: '%', color: run.pass_rate >= 80 ? '#52c41a' : '#f5222d' },
                         { title: '通过', value: run.passed, color: '#52c41a' },
-                        {
-                            title: '失败',
-                            value: run.failed,
-                            color: run.failed ? '#f5222d' : '#333',
-                        },
-                        { title: '耗时(s)', value: run.duration?.toFixed(1) },
+                        { title: '失败', value: run.failed, color: run.failed ? '#f5222d' : '#333' },
+                        { title: '耗时(s)', value: Number(run.duration?.toFixed(1)) },
                     ].map(item => (
                         <Col span={6} key={item.title}>
                             <Card size="small">
                                 <Statistic
                                     title={item.title}
-                                    value={item.value as number}
+                                    value={item.value}
                                     suffix={item.suffix}
                                     valueStyle={{ color: item.color }}
                                 />
@@ -130,7 +125,6 @@ export default function ReportSummary() {
                 </Row>
             )}
 
-            {/* AI 摘要卡片 */}
             <Card
                 title={
                     <Space>
@@ -146,40 +140,52 @@ export default function ReportSummary() {
                     </div>
                 )}
 
-                {!regenerating && !summary?.available && (
+                {!regenerating && isQuotaError && (
                     <Alert
                         type="warning"
-                        message="AI 服务不可用"
-                        description={
-                            <div>
-                                请在 <code>.env</code> 中配置 <code>OPENAI_API_KEY</code>，
-                                然后重启后端服务并点击"重新生成摘要"。
-                            </div>
-                        }
+                        icon={<DollarOutlined />}
+                        message="OpenAI 账户余额不足"
+                        description={QuotaDescription}
                     />
                 )}
 
-                {!regenerating && summary?.available && (
+                {!regenerating && !isQuotaError && !isAvailable && (
+                    <Alert
+                        type="warning"
+                        message="AI 服务不可用"
+                        description={KeyDescription}
+                    />
+                )}
+
+                {!regenerating && isAvailable && !isQuotaError && isNoContent && (
+                    <Alert
+                        type="info"
+                        message="摘要内容为空"
+                        description="AI 生成摘要失败或内容为空，请点击「重新生成摘要」重试。"
+                    />
+                )}
+
+                {!regenerating && isAvailable && !isQuotaError && !isNoContent && (
                     <>
                         <Divider orientation="left">
                             <Space><BulbOutlined />总结</Space>
                         </Divider>
                         <Paragraph style={{ fontSize: 14, lineHeight: 1.8, color: '#333' }}>
-                            {summary.summary || '（摘要内容为空，请点击重新生成）'}
+                            {summaryText}
                         </Paragraph>
 
                         <Divider orientation="left">风险评估</Divider>
                         <Space>
                             <Text>当前风险等级：</Text>
                             <Tag
-                                color={riskColor[summary.risk_level] || 'default'}
+                                color={riskColor[summary?.risk_level ?? 'unknown'] ?? 'default'}
                                 style={{ fontSize: 14, padding: '2px 12px' }}
                             >
-                                {riskLabel[summary.risk_level] || summary.risk_level}
+                                {riskLabel[summary?.risk_level ?? 'unknown'] ?? '未评估'}
                             </Tag>
                         </Space>
 
-                        {summary.key_issues?.length > 0 && (
+                        {(summary?.key_issues?.length ?? 0) > 0 && (
                             <>
                                 <Divider orientation="left">
                                     <Space>
@@ -188,7 +194,7 @@ export default function ReportSummary() {
                                     </Space>
                                 </Divider>
                                 <List
-                                    dataSource={summary.key_issues}
+                                    dataSource={summary?.key_issues ?? []}
                                     renderItem={(issue: string, idx: number) => (
                                         <List.Item>
                                             <Space align="start">
@@ -201,7 +207,7 @@ export default function ReportSummary() {
                             </>
                         )}
 
-                        {summary.recommendations?.length > 0 && (
+                        {(summary?.recommendations?.length ?? 0) > 0 && (
                             <>
                                 <Divider orientation="left">
                                     <Space>
@@ -210,7 +216,7 @@ export default function ReportSummary() {
                                     </Space>
                                 </Divider>
                                 <List
-                                    dataSource={summary.recommendations}
+                                    dataSource={summary?.recommendations ?? []}
                                     renderItem={(rec: string, idx: number) => (
                                         <List.Item>
                                             <Space align="start">
