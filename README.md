@@ -413,9 +413,3 @@ pip install cryptography
 ```
 
 **AI 功能返回 429 错误**，表示 OpenAI 账户余额不足，前往 [platform.openai.com/settings/billing](https://platform.openai.com/settings/billing) 充值后重试。
-
----
-
-## License
-
-[MIT License](LICENSE)
