@@ -1,21 +1,109 @@
-import tempfile
-import shutil
 import json
-from pathlib import Path
+from typing import Optional
 from fastapi import APIRouter, UploadFile, File, Form
-from backend.models.schemas import GenerateCasesRequest, HealLocatorRequest, AnalyzeFailureRequest
-from ai.failure_analyzer import AIFailureAnalyzer
-from ai.case_generator import AICaseGenerator
-from ai.locator_healer import LocatorHealer
+from pydantic import BaseModel
+
 from core.db_client import DBClient
 from core.log_factory import log
+from ai.rag.analyzer import RAGFailureAnalyzer
 
 router = APIRouter()
 
-_analyzer = AIFailureAnalyzer()
-_generator = AICaseGenerator()
-_healer    = LocatorHealer()
+_analyzer: Optional[RAGFailureAnalyzer] = None
 
+
+def get_analyzer() -> RAGFailureAnalyzer:
+    """惰性初始化分析器单例，首次调用时加载 embedding 模型。"""
+    global _analyzer
+    if _analyzer is None:
+        log.info("首次调用，正在初始化 RAG 分析器...")
+        _analyzer = RAGFailureAnalyzer()
+    return _analyzer
+
+
+def _short_uuid() -> str:
+    import uuid
+    return uuid.uuid4().hex[:8]
+
+
+async def _run_analysis(error_log: str, test_case_name: str,
+                        test_code: str, run_id, case_id) -> dict:
+    """统一的分析逻辑，被 JSON 接口和截图接口共用。
+
+    返回结构对齐旧前端期望的扁平字段，同时附带 RAG 检索信息。
+    """
+    analyzer = get_analyzer()
+    cid = str(case_id) if case_id else f"{test_case_name or 'case'}_{_short_uuid()}"
+
+    result = analyzer.analyze(
+        case_id=cid,
+        error_message=error_log,
+        test_name=test_case_name,
+        test_code=test_code or "",
+    )
+    a = result["analysis"]
+
+    # 把分析结果回写数据库
+    if case_id:
+        try:
+            await DBClient.update_case_ai_analysis(
+                int(case_id), json.dumps(result, ensure_ascii=False)
+            )
+        except Exception as e:
+            log.warning(f"回写用例 AI 分析失败: {e}")
+
+    if run_id or case_id:
+        try:
+            await DBClient.save_ai_analysis({
+                "run_id":         run_id,
+                "case_id":        case_id,
+                "test_case_name": test_case_name,
+                "failure_type":   a["failure_type"],
+                "root_cause":     a["root_cause"],
+                "suggestion":     a["suggestion"],
+                "confidence":     a["confidence"],
+                "is_flaky":       a["is_flaky"],
+            })
+        except Exception as e:
+            log.warning(f"保存 AI 分析记录失败: {e}")
+
+    # 扁平结构（对齐旧前端）+ RAG 增强字段
+    return {
+        "available":       True,
+        "failure_type":    a["failure_type"],
+        "root_cause":      a["root_cause"],
+        "suggestion":      a["suggestion"],
+        "confidence":      a["confidence"],
+        "is_flaky":        a["is_flaky"],
+        "retrieved_cases": result["retrieved_cases"],
+        "retrieval_used":  result["retrieval_used"],
+        "llm_backend":     result["llm_backend"],
+    }
+
+
+# JSON 入参接口（前端主用）
+
+class AnalyzeFailureRequest(BaseModel):
+    error_log: str = ""
+    test_case_name: str = ""
+    test_code: str = ""
+    run_id: Optional[int] = None
+    case_id: Optional[int] = None
+
+
+@router.post("/analyze-failure-json")
+async def analyze_failure_json(req: AnalyzeFailureRequest):
+    """失败根因分析（JSON 入参）。"""
+    return await _run_analysis(
+        error_log=req.error_log,
+        test_case_name=req.test_case_name,
+        test_code=req.test_code,
+        run_id=req.run_id,
+        case_id=req.case_id,
+    )
+
+
+# 截图上传接口
 
 @router.post("/analyze-failure")
 async def analyze_failure_with_screenshot(
@@ -26,122 +114,58 @@ async def analyze_failure_with_screenshot(
     run_id:         int = Form(None),
     case_id:        int = Form(None),
 ):
-    screenshot_path = ""
-    tmp_file = None
+    """失败根因分析（支持截图上传）。
 
-    if screenshot and screenshot.filename:
-        try:
-            tmp_file = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
-            shutil.copyfileobj(screenshot.file, tmp_file)
-            tmp_file.close()
-            screenshot_path = tmp_file.name
-        except Exception as e:
-            log.warning(f"截图保存失败: {e}")
-
-    result = _analyzer.analyze(
-        screenshot_path=screenshot_path,
+    注：当前 RAG 文本分析不消费截图，截图参数保留是为了兼容旧前端表单，
+    后续若接入多模态视觉模型可在此扩展。
+    """
+    return await _run_analysis(
         error_log=error_log,
-        test_code=test_code,
         test_case_name=test_case_name,
+        test_code=test_code or "",
+        run_id=run_id,
+        case_id=case_id,
     )
 
-    if tmp_file:
-        Path(tmp_file.name).unlink(missing_ok=True)
 
-    # 存储分析记录
-    if result.get("available"):
-        await _save_analysis(result, run_id, case_id, test_case_name)
-
-    return result
-
-
-@router.post("/analyze-failure-json")
-async def analyze_failure_json(req: AnalyzeFailureRequest):
-    """纯 JSON 请求（无截图），存储结果"""
-    result = _analyzer.analyze(
-        screenshot_path="",
-        error_log=req.error_log,
-        test_code=req.test_code,
-        test_case_name=req.test_case_name or "",
-    )
-
-    if result.get("available"):
-        await _save_analysis(
-            result,
-            run_id=getattr(req, "run_id", None),
-            case_id=getattr(req, "case_id", None),
-            test_case_name=req.test_case_name or "",
-        )
-        # 更新 TestCase 的 ai_analysis 字段
-        if getattr(req, "case_id", None):
-            await DBClient.update_case_ai_analysis(req.case_id, json.dumps(result, ensure_ascii=False))
-
-    return result
-
-
-@router.post("/generate-cases")
-async def generate_cases(req: GenerateCasesRequest):
-    if req.case_type == "api":
-        yaml_str = _generator.generate_api_cases(req.user_story)
-        return {"type": "api", "yaml": yaml_str, "available": _generator.available}
-    cases = _generator.generate_ui_cases(req.user_story)
-    return {"type": "ui", "cases": cases, "count": len(cases), "available": _generator.available}
-
-
-@router.post("/heal-locator")
-async def heal_locator(req: HealLocatorRequest):
-    alternatives = _healer.suggest_alternatives(
-        broken_selector=req.broken_selector,
-        page_html=req.page_html,
-        element_purpose=req.element_purpose or "",
-    )
-    return {
-        "broken_selector": req.broken_selector,
-        "alternatives":    alternatives,
-        "available":       _healer._available,
-    }
-
+# 历史记录
 
 @router.get("/history/{run_id}")
 async def get_ai_history(run_id: int):
-    """获取某次运行的所有 AI 分析记录"""
-    records = await DBClient.get_ai_history(run_id)
-    return [
-        {
-            "id":             r.id,
-            "test_case_name": r.test_case_name,
-            "failure_type":   r.failure_type,
-            "root_cause":     r.root_cause,
-            "suggestion":     r.suggestion,
-            "confidence":     r.confidence,
-            "is_flaky":       r.is_flaky,
-            "created_at":     r.created_at.isoformat() if r.created_at else None,
-        }
-        for r in records
-    ]
+    """获取某次执行的 AI 分析历史记录。"""
+    try:
+        records = await DBClient.get_ai_history(run_id)
+        return [
+            {
+                "id":             r.id,
+                "test_case_name": r.test_case_name,
+                "failure_type":   r.failure_type,
+                "root_cause":     r.root_cause,
+                "suggestion":     r.suggestion,
+                "confidence":     r.confidence,
+                "is_flaky":       r.is_flaky,
+                "created_at":     r.created_at.isoformat() if r.created_at else "",
+            }
+            for r in records
+        ]
+    except Exception as e:
+        log.warning(f"获取 AI 历史失败: {e}")
+        return []
 
+
+# 状态
 
 @router.get("/status")
 async def ai_status():
+    """AI 子系统状态。
+
+    返回字段对齐旧前端期望的 {analyzer, generator, healer} 结构，
+    避免前端 getAIStatus 解构报错；generator/healer 固定 false（已移除）。
+    """
+    st = get_analyzer().status
     return {
-        "analyzer": _analyzer.available,
-        "generator": _generator.available,
-        "healer":   _healer._available,
+        "analyzer":  st["llm_available"],
+        "generator": False, 
+        "healer":    False, 
+        "rag":       st["kb_stats"], 
     }
-
-
-async def _save_analysis(result: dict, run_id, case_id, test_case_name: str):
-    try:
-        await DBClient.save_ai_analysis({
-            "run_id":          run_id,
-            "case_id":         case_id,
-            "test_case_name":  test_case_name,
-            "failure_type":    result.get("failure_type", "unknown"),
-            "root_cause":      result.get("root_cause", ""),
-            "suggestion":      result.get("suggestion", ""),
-            "confidence":      result.get("confidence", 0.0),
-            "is_flaky":        result.get("is_flaky", False),
-            "flaky_reason":    result.get("flaky_reason", ""),
-        })
-    except Exception as e:
-        log.warning(f"AI 分析记录存储失败: {e}")

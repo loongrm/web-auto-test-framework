@@ -8,6 +8,19 @@ from core.log_factory import log
 
 router = APIRouter()
 
+# 复用与失败分析同一套 LLM 客户端（三级降级：云端 → 本地 Ollama → 规则）
+# 模块级单例：避免每次请求重新初始化
+_llm = None
+
+
+def _get_llm():
+    """惰性获取 LLM 客户端单例。"""
+    global _llm
+    if _llm is None:
+        from ai.llm.client import LLMClient
+        _llm = LLMClient()
+    return _llm
+
 
 @router.get("/dashboard", response_model=DashboardData)
 async def get_dashboard():
@@ -60,7 +73,6 @@ async def get_failed_cases(run_id: int):
         if parsed:
             await DBClient.save_cases(run_id, parsed)
             cases = await DBClient.get_failed_cases(run_id)
-        # 修复：parsed 可能为空列表，用 len(parsed) 前先确认 parsed 已定义
         log.info(f"[run {run_id}] 实时解析失败用例: {len(parsed) if parsed else 0} 条")
 
     return [
@@ -82,7 +94,8 @@ async def get_failed_cases(run_id: int):
 async def get_ai_summary(run_id: int):
     """
     获取 AI 执行摘要。
-    有缓存直接返回，否则调用 AI 生成并缓存到数据库。
+    有缓存直接返回，否则调用 LLM 生成并缓存到数据库。
+    LLM 走三级降级：云端 → 本地 Ollama → 规则兜底。
     """
     from core.db_client import TestRun
 
@@ -104,120 +117,95 @@ async def get_ai_summary(run_id: int):
     failed_cases = parser.parse_failed_cases()
     stats        = parser.get_stats()
 
-    # 3. 检查 AI 是否可用
-    from ai.case_generator import AICaseGenerator
-    generator = AICaseGenerator()
-    if not generator.available:
-        return {
-            "run_id":          run_id,
-            "available":       False,
-            "cached":          False,
-            "summary":         "AI 服务不可用，请在 .env 中配置 OPENAI_API_KEY。",
-            "key_issues":      [],
-            "recommendations": [],
-            "risk_level":      "unknown",
-        }
+    llm = _get_llm()
 
-    # 4. 生成简单文本摘要（供邮件使用）
-    summary_text = await _generate_ai_summary_text(run_id, failed_cases, stats)
+    # 3. LLM 完全不可用（连本地 Ollama 都没有）→ 返回基于规则的简单摘要
+    if not llm.available:
+        total  = stats.get("total", 0)
+        passed = stats.get("passed", 0)
+        failed = stats.get("failed", 0)
+        rate   = round(passed / total * 100, 1) if total else 0
+        rule_summary = (
+            f"本次执行共 {total} 条用例，通过 {passed}，失败 {failed}，通过率 {rate}%。"
+            + ("存在失败用例，建议优先排查。" if failed > 0 else "全部通过。")
+        )
+        result = {
+            "run_id":          run_id,
+            "available":       True,           # 仍可用（规则兜底），不再返回 False
+            "cached":          False,
+            "summary":         rule_summary,
+            "key_issues":      [c["name"] for c in failed_cases[:5]],
+            "recommendations": ["配置本地 Ollama 或云端 API 可获得更智能的分析"] if failed else [],
+            "risk_level":      "high" if failed > 0 else "low",
+            "llm_backend":     "rule_fallback",
+        }
+        await DBClient.save_ai_summary(run_id, json.dumps(result, ensure_ascii=False))
+        return result
+
+    total  = stats.get("total", 0)
+    passed = stats.get("passed", 0)
+    failed = stats.get("failed", 0)
+
+    # 4. 生成纯文本摘要（供邮件使用）
+    summary_text = _generate_ai_summary_text(llm, failed_cases, stats)
 
     # 5. 构建基础结果
     result = {
         "run_id":          run_id,
         "available":       True,
         "cached":          False,
-        "summary":         summary_text,
+        "summary":         summary_text or "（摘要生成中）",
         "key_issues":      [],
         "recommendations": [],
-        "risk_level":      "high" if stats.get("failed", 0) > 0 else "low",
+        "risk_level":      "high" if failed > 0 else "low",
+        "llm_backend":     llm.backend,
     }
 
-    # 6. 尝试生成完整结构化摘要（覆盖基础结果）
-    try:
-        from openai import OpenAI
-        client = OpenAI(
-            api_key  = os.getenv("OPENAI_API_KEY"),
-            base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1"),
+    # 6. 生成完整结构化摘要（走三级降级的 chat_json）
+    context = (
+        f"测试运行 #{run_id} 完成：总 {total}，通过 {passed}，失败 {failed}。\n"
+        f"通过率: {round(passed / total * 100, 1) if total else 0}%\n"
+        f"失败用例（前10条）:\n" +
+        "\n".join(
+            f"  - {c['name']}: {(c.get('error_message') or '')[:120]}"
+            for c in failed_cases[:10]
         )
-        total  = stats.get("total", 0)
-        passed = stats.get("passed", 0)
-        failed = stats.get("failed", 0)
-
-        context = (
-            f"测试运行 #{run_id} 完成：总 {total}，通过 {passed}，失败 {failed}。\n"
-            f"通过率: {round(passed / total * 100, 1) if total else 0}%\n"
-            f"失败用例（前10条）:\n" +
-            "\n".join(
-                f"  - {c['name']}: {(c.get('error_message') or '')[:120]}"
-                for c in failed_cases[:10]
-            )
-        )
-
-        resp = client.chat.completions.create(
-            model    = "gpt-4o",
-            messages = [{"role": "user", "content": (
-                f"你是测试经理，根据以下结果生成测试报告摘要。\n"
-                f"返回JSON格式：{{\"summary\":\"2-3句总结\","
-                f"\"key_issues\":[\"问题1\",\"问题2\"],"
-                f"\"recommendations\":[\"建议1\",\"建议2\"],"
-                f"\"risk_level\":\"high|medium|low\"}}\n\n"
-                f"{context}"
-            )}],
-            response_format = {"type": "json_object"},
-            max_tokens  = 800,
-            temperature = 0.3,
-        )
-        structured = json.loads(resp.choices[0].message.content)
+    )
+    system_prompt = (
+        "你是测试经理，根据测试结果生成报告摘要。"
+        "必须严格返回如下 JSON，不要任何额外文字：\n"
+        '{"summary":"2-3句总结","key_issues":["问题1","问题2"],'
+        '"recommendations":["建议1","建议2"],"risk_level":"high|medium|low"}'
+    )
+    structured = llm.chat_json(system_prompt, context)
+    if structured:
         result.update(structured)
-        log.info(f"[run {run_id}] 结构化 AI 摘要生成成功")
-
-    except Exception as e:
-        log.warning(f"[run {run_id}] 结构化 AI 摘要失败，使用简单摘要: {e}")
+        log.info(f"[run {run_id}] 结构化 AI 摘要生成成功 | backend={llm.backend}")
+    else:
+        log.warning(f"[run {run_id}] 结构化摘要失败，保留基础摘要")
 
     # 7. 缓存到数据库
     await DBClient.save_ai_summary(run_id, json.dumps(result, ensure_ascii=False))
-
     return result
 
 
-async def _generate_ai_summary_text(run_id: int, failed_cases: list, stats: dict) -> str:
+def _generate_ai_summary_text(llm, failed_cases: list, stats: dict) -> str:
     """
     生成纯文本 AI 摘要（2-3句话），供邮件通知使用。
-    失败时静默返回空字符串，不影响主流程。
+    走三级降级的 chat_text，失败时静默返回空字符串。
     """
-    try:
-        from openai import OpenAI
-        client = OpenAI(
-            api_key  = os.getenv("OPENAI_API_KEY"),
-            base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1"),
-        )
-        total  = stats.get("total", 0)
-        passed = stats.get("passed", 0)
-        failed = stats.get("failed", 0)
+    total  = stats.get("total", 0)
+    passed = stats.get("passed", 0)
+    failed = stats.get("failed", 0)
+    context = (
+        f"本次执行共 {total} 条用例，通过 {passed}，失败 {failed}，"
+        f"通过率 {round(passed / total * 100, 1) if total else 0}%。\n"
+        f"主要失败用例：" + "；".join(c["name"] for c in failed_cases[:5])
+    )
+    system_prompt = "你是测试经理，用2-3句话总结测试结果，指出主要问题和风险。"
+    return llm.chat_text(system_prompt, context)
 
-        context = (
-            f"本次执行共 {total} 条用例，通过 {passed}，失败 {failed}，"
-            f"通过率 {round(passed / total * 100, 1) if total else 0}%。\n"
-            f"主要失败用例：" +
-            "；".join(c["name"] for c in failed_cases[:5])
-        )
 
-        resp = client.chat.completions.create(
-            model    = "gpt-4o-mini",
-            messages = [{"role": "user", "content": (
-                f"你是测试经理，用2-3句话总结以下测试结果，指出主要问题和风险：\n{context}"
-            )}],
-            max_tokens  = 200,
-            temperature = 0.3,
-        )
-        text = resp.choices[0].message.content.strip()
-        log.info(f"[run {run_id}] 文本摘要生成成功")
-        return text
-
-    except Exception as e:
-        log.warning(f"[run {run_id}] AI 文本摘要失败: {e}")
-        return ""
-    
 @router.post("/runs/{run_id}/ai-summary/clear")
 async def clear_ai_summary_cache(run_id: int):
     """清除 AI 摘要缓存，下次请求时重新生成"""

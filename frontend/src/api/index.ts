@@ -132,18 +132,5 @@ export const analyzeFailure = (data: {
 }): Promise<AIAnalysisResult> =>
     api.post<AIAnalysisResult>('/ai/analyze-failure-json', data).then(res => res.data)
 
-export const generateCases = (data: {
-    user_story: string
-    case_type: 'ui' | 'api'
-}): Promise<{ type: string; cases?: any[]; yaml?: string; count?: number; available: boolean }> =>
-    api.post('/ai/generate-cases', data).then(res => res.data)
-
-export const healLocator = (data: {
-    broken_selector: string
-    page_html: string
-    element_purpose?: string
-}): Promise<{ broken_selector: string; alternatives: string[]; available: boolean }> =>
-    api.post('/ai/heal-locator', data).then(res => res.data)
-
 export const getAIStatus = (): Promise<{ analyzer: boolean; generator: boolean; healer: boolean }> =>
     api.get('/ai/status').then(res => res.data)

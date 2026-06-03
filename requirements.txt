@@ -5,11 +5,11 @@ pytest-rerunfailures>=14.0
 pytest-xdist>=3.6.0
 allure-pytest>=2.13.5
 
-# UI自动化
+# UI 自动化
 playwright>=1.49.0
 pytest-playwright>=0.6.0
 
-# API测试
+# API 测试
 requests>=2.32.0
 httpx>=0.28.0
 
@@ -28,12 +28,17 @@ uvicorn[standard]>=0.32.0
 pydantic>=2.10.0
 sqlalchemy>=2.0.36
 aiosqlite>=0.20.0
+aiomysql>=0.2.0
 python-multipart>=0.0.19
 aiofiles>=24.1.0
 
-# AI
-openai>=1.57.0
+# AI / RAG
+openai>=1.57.0              # LLM 调用（云端 OpenAI / 本地 Ollama 兼容接口）
+chromadb>=0.5.0             # 向量数据库，失败案例知识库
+sentence-transformers>=3.0.0  # 本地 embedding 模型（bge-small）
+tenacity>=9.0.0            # LLM 调用重试（指数退避）
 
 # 工具
 python-jenkins>=1.8.0
 pillow>=11.0.0
+cryptography>=43.0.0        # MySQL 8 caching_sha2_password 认证
