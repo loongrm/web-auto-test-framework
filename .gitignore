@@ -37,4 +37,3 @@ frontend/.vite/
 .vscode/
 *.swp
 .DS_Store
-demo.py
